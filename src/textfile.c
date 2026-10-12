@@ -123,6 +123,20 @@ bool textfile_changed(const wchar_t *path, const FileStamp *stamp)
            || attributes.nFileSizeLow != stamp->size;
 }
 
+size_t textfile_count_lines(const char *text, size_t length)
+{
+    size_t lines = 0;
+    for (size_t i = 0; i < length; i++) {
+        if (text[i] == '\n') lines++;
+        else if (text[i] == '\r') {
+            lines++;
+            if (i + 1 < length && text[i + 1] == '\n') i++; /* CRLF は1つの改行 */
+        }
+    }
+    if (length > 0 && text[length - 1] != '\n' && text[length - 1] != '\r') lines++;
+    return lines;
+}
+
 bool textfile_is_markdown(const wchar_t *path)
 {
     const wchar_t *extension = PathFindExtensionW(path);

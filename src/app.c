@@ -11,6 +11,7 @@
 #include "links.h"
 #include "viewer.h"
 
+#include <commctrl.h>
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <stdio.h>
@@ -20,13 +21,19 @@
 /* Ctrl+ホイール・Ctrl++/- で切り替える倍率（%） */
 static const int ZOOM_STEPS[] = { 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300 };
 
+/* 文書の先頭の空き（twips）。150 twips ≒ 10px（96 DPI）。上の余白の代わり（viewer_layout 参照） */
+#define TOP_SPACE_TWIPS 150
+
+#define KIB 1024ULL
+#define MIB (1024ULL * 1024ULL)
+
 /* ------------------------------------------------------------------------
  * 表示
  * ------------------------------------------------------------------------ */
 
-static COLORREF theme_background(bool dark)
+COLORREF app_background(const App *a)
 {
-    unsigned bg = md_theme_background(dark ? 1 : 0);
+    unsigned bg = md_theme_background(a->cfg.dark ? 1 : 0);
     return RGB((bg >> 16) & 255, (bg >> 8) & 255, bg & 255);
 }
 
@@ -48,6 +55,30 @@ void app_update_title(App *a)
     SetWindowTextW(a->hwnd, title);
 }
 
+/* ステータスバー：[0] ファイルサイズ、[1] 行数。ファイル未指定（初期表示）なら空 */
+void app_update_status(App *a)
+{
+    if (!a->statusBar) return;
+    wchar_t size[96] = L"";
+    wchar_t lines[64] = L"";
+    if (a->path) {
+        wchar_t format[64];
+        unsigned long long bytes = a->stamp.size;
+        if (bytes < KIB)
+            swprintf(size, ARRAY_COUNT(size), res_string(IDS_STATUS_BYTES, format, ARRAY_COUNT(format)), bytes);
+        else if (bytes < MIB)
+            swprintf(size, ARRAY_COUNT(size), res_string(IDS_STATUS_KIB, format, ARRAY_COUNT(format)),
+                     (double)bytes / KIB, bytes);
+        else
+            swprintf(size, ARRAY_COUNT(size), res_string(IDS_STATUS_MIB, format, ARRAY_COUNT(format)),
+                     (double)bytes / MIB, bytes);
+        swprintf(lines, ARRAY_COUNT(lines), res_string(IDS_STATUS_LINES, format, ARRAY_COUNT(format)),
+                 (unsigned long long)a->lineCount);
+    }
+    SendMessageW(a->statusBar, SB_SETTEXTW, 0, (LPARAM)size);
+    SendMessageW(a->statusBar, SB_SETTEXTW, 1, (LPARAM)lines);
+}
+
 void app_render(App *a, ScrollKeep keep)
 {
     ViewerScroll scroll = viewer_save_scroll(a->edit, keep);
@@ -65,6 +96,7 @@ void app_render(App *a, ScrollKeep keep)
     options.font_code   = fontCode ? fontCode : "Consolas";
     options.body_halfpt = a->cfg.fontSize * 2;
     options.image_label = (label && label[0]) ? label : NULL;
+    options.top_space_twips = TOP_SPACE_TWIPS;
 
     /* ファイル未指定ならリソースの初期表示用文書（IDR_WELCOME）を表示する */
     const char *src = a->source;
@@ -79,9 +111,10 @@ void app_render(App *a, ScrollKeep keep)
     free(fontCode);
     free(label);
 
-    viewer_show_rtf(a->edit, a->doc.rtf, a->doc.rtf_len, theme_background(a->cfg.dark), &scroll);
+    viewer_show_rtf(a->edit, a->doc.rtf, a->doc.rtf_len, app_background(a), &scroll);
     a->lastWidth = options.width_twips;
     app_update_title(a);
+    app_update_status(a);
 }
 
 /* ------------------------------------------------------------------------
@@ -116,6 +149,7 @@ bool app_open(App *a, const wchar_t *path, bool pushHistory)
     free(a->path);
     a->source = text;
     a->sourceLength = length;
+    a->lineCount = textfile_count_lines(text, length);
     a->path = full;
     a->stamp = stamp;
     app_render(a, SCROLL_TOP);
@@ -135,6 +169,7 @@ void app_reload(App *a, ScrollKeep keep)
     free(a->source);
     a->source = text;
     a->sourceLength = length;
+    a->lineCount = textfile_count_lines(text, length);
     a->stamp = stamp;
     app_render(a, keep);
 }

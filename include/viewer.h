@@ -25,8 +25,11 @@ bool viewer_load_library(void);
 /* 読み取り専用の RichEdit を作る（リンク通知・ドロップ通知・高度な文字組みを有効化）。 */
 HWND viewer_create(HWND parent, HINSTANCE instance, UINT id);
 
-/* 親のクライアント全体に広げ、本文の余白（DPI に比例）を設定する。 */
-void viewer_layout(HWND edit, int width, int height, int dpi);
+/* 親の (x, y, width, height) に配置し、本文の左右余白（DPI に比例）を設定する。 */
+void viewer_layout(HWND edit, int x, int y, int width, int height, int dpi);
+
+/* 書式矩形の外（余白）を背景色で塗る。RichEdit の WM_PAINT の後に呼ぶ（サブクラスから）。 */
+void viewer_paint_margins(HWND edit, COLORREF background);
 
 /* 表・コードブロックに使える幅（twips）。 */
 int viewer_width_twips(HWND edit, int dpi);

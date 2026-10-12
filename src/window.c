@@ -47,11 +47,20 @@ void window_apply_theme(App *a)
         DwmSetWindowAttribute(a->hwnd, DWMWA_DARK_MODE_LEGACY, &dark, sizeof(dark));
 }
 
+/* ステータスバー（表示時）を下端に置き、残りを本文にする */
 static void on_size(App *a)
 {
     RECT client;
     GetClientRect(a->hwnd, &client);
-    viewer_layout(a->edit, client.right, client.bottom, screen_dpi());
+    int statusHeight = 0;
+    if (a->statusBar && a->cfg.showStatusBar) {
+        SendMessageW(a->statusBar, WM_SIZE, 0, 0);
+        RECT bar;
+        GetWindowRect(a->statusBar, &bar);
+        statusHeight = bar.bottom - bar.top;
+    }
+    int height = client.bottom - statusHeight;
+    viewer_layout(a->edit, 0, 0, client.right, height > 0 ? height : 0, screen_dpi());
     SetTimer(a->hwnd, TID_RESIZE, RESIZE_DELAY_MS, NULL);
 }
 
@@ -69,27 +78,44 @@ static void on_timer(App *a, UINT_PTR id)
  * ウィンドウ位置の保存・復元
  * ------------------------------------------------------------------------ */
 
+static bool is_minimize_command(int showCommand)
+{
+    return showCommand == SW_SHOWMINIMIZED || showCommand == SW_MINIMIZE || showCommand == SW_SHOWMINNOACTIVE;
+}
+
 void window_restore_placement(App *a, int showCommand)
 {
-    if (a->cfg.hasPlacement) {
-        WINDOWPLACEMENT wp = a->cfg.placement;
-        if (wp.showCmd != SW_SHOWMAXIMIZED) wp.showCmd = SW_SHOWNORMAL;
-        if (showCommand == SW_SHOWMINIMIZED || showCommand == SW_MINIMIZE || showCommand == SW_SHOWMINNOACTIVE)
-            wp.showCmd = (UINT)showCommand;
-        SetWindowPlacement(a->hwnd, &wp);
-    } else {
-        ShowWindow(a->hwnd, showCommand);
+    const Settings *s = &a->cfg;
+    if (s->x != CW_USEDEFAULT && s->y != CW_USEDEFAULT && s->width > 0 && s->height > 0) {
+        /* 保存値は GetWindowPlacement のワークエリア座標なので同じ API で戻す */
+        RECT r = { s->x, s->y, s->x + s->width, s->y + s->height };
+        if (MonitorFromRect(&r, MONITOR_DEFAULTTONULL)) { /* どのモニタにも重ならなければ既定位置 */
+            WINDOWPLACEMENT wp = { .length = sizeof(wp) };
+            GetWindowPlacement(a->hwnd, &wp);
+            wp.flags = 0;
+            wp.showCmd = SW_HIDE;
+            wp.rcNormalPosition = r;
+            SetWindowPlacement(a->hwnd, &wp);
+        }
     }
+    /* 最小化での起動指定（ショートカットの「実行時の大きさ」など）は保存値より優先する */
+    int command = (s->maximized && !is_minimize_command(showCommand)) ? SW_SHOWMAXIMIZED : showCommand;
+    ShowWindow(a->hwnd, command);
     UpdateWindow(a->hwnd);
 }
 
 void window_save_placement(App *a)
 {
     WINDOWPLACEMENT wp = { .length = sizeof(wp) };
-    if (GetWindowPlacement(a->hwnd, &wp)) {
-        a->cfg.placement = wp;
-        a->cfg.hasPlacement = true;
-    }
+    if (!GetWindowPlacement(a->hwnd, &wp)) return;
+
+    const RECT *r = &wp.rcNormalPosition;
+    a->cfg.x = r->left;
+    a->cfg.y = r->top;
+    a->cfg.width = r->right - r->left;
+    a->cfg.height = r->bottom - r->top;
+    a->cfg.maximized = wp.showCmd == SW_SHOWMAXIMIZED
+                       || (wp.showCmd == SW_SHOWMINIMIZED && (wp.flags & WPF_RESTORETOMAXIMIZED));
 }
 
 /* ------------------------------------------------------------------------
@@ -155,6 +181,11 @@ static LRESULT CALLBACK viewer_subclass(HWND hwnd, UINT message, WPARAM wParam, 
 {
     App *a = (App *)ref;
     switch (message) {
+    case WM_PAINT: { /* 描画後に余白を塗り直し、前の表示の断片を残さない（viewer_paint_margins） */
+        LRESULT result = DefSubclassProc(hwnd, message, wParam, lParam);
+        viewer_paint_margins(hwnd, app_background(a));
+        return result;
+    }
     case WM_MOUSEWHEEL: /* Ctrl+ホイール：RichEdit 自身のズームではなく、RTF を作り直して拡大縮小する */
         if (GET_KEYSTATE_WPARAM(wParam) & MK_CONTROL) {
             app_zoom_step(a, GET_WHEEL_DELTA_WPARAM(wParam) > 0 ? +1 : -1);
@@ -178,12 +209,25 @@ static LRESULT CALLBACK viewer_subclass(HWND hwnd, UINT message, WPARAM wParam, 
  * ウィンドウプロシージャ
  * ------------------------------------------------------------------------ */
 
+#define STATUS_SIZE_WIDTH 260 /* ステータスバーの「ファイルサイズ」欄の幅（96 DPI 基準の px）。残りが「行数」 */
+
+static void create_status_bar(App *a)
+{
+    a->statusBar = CreateWindowExW(0, STATUSCLASSNAMEW, L"", WS_CHILD | SBARS_SIZEGRIP |
+                                   (a->cfg.showStatusBar ? WS_VISIBLE : 0),
+                                   0, 0, 0, 0, a->hwnd, (HMENU)(UINT_PTR)IDC_STATUSBAR, a->instance, NULL);
+    if (!a->statusBar) return;
+    int parts[2] = { MulDiv(STATUS_SIZE_WIDTH, screen_dpi(), 96), -1 };
+    SendMessageW(a->statusBar, SB_SETPARTS, ARRAY_COUNT(parts), (LPARAM)parts);
+}
+
 static bool on_create(App *a, HWND hwnd)
 {
     a->hwnd = hwnd;
     a->edit = viewer_create(hwnd, a->instance, IDC_VIEWER);
     if (!a->edit) return false;
     SetWindowSubclass(a->edit, viewer_subclass, 1, (DWORD_PTR)a);
+    create_status_bar(a); /* 作れなくても本文は表示できるので続行 */
     return true;
 }
 
@@ -201,7 +245,7 @@ static void register_drop_targets(App *a)
 static void on_close(App *a)
 {
     window_save_placement(a);
-    settings_save(&a->cfg);
+    settings_save(&a->cfg, a->iniPath); /* 書き込めない場所では保存されない（終了時は通知しない） */
     DestroyWindow(a->hwnd);
 }
 
@@ -296,9 +340,10 @@ bool window_register_class(HINSTANCE instance)
 HWND window_create(App *a)
 {
     int dpi = screen_dpi();
-    HWND hwnd = CreateWindowExW(0, WINDOW_CLASS, APP_NAME, WS_OVERLAPPEDWINDOW,
-                                CW_USEDEFAULT, CW_USEDEFAULT,
-                                MulDiv(DEFAULT_WIDTH, dpi, 96), MulDiv(DEFAULT_HEIGHT, dpi, 96),
+    int width = a->cfg.width > 0 ? a->cfg.width : MulDiv(DEFAULT_WIDTH, dpi, 96);
+    int height = a->cfg.height > 0 ? a->cfg.height : MulDiv(DEFAULT_HEIGHT, dpi, 96);
+    HWND hwnd = CreateWindowExW(0, WINDOW_CLASS, APP_NAME, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+                                CW_USEDEFAULT, CW_USEDEFAULT, width, height,
                                 NULL, a->mainMenu, a->instance, a);
     if (!hwnd) return NULL;
     register_drop_targets(a);

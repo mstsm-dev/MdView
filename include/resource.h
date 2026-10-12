@@ -24,6 +24,7 @@
 
 /* ---- 子ウィンドウ ---- */
 #define IDC_VIEWER              901 /* 本文の RichEdit */
+#define IDC_STATUSBAR           902 /* ステータスバー */
 
 /* ---- コマンド：ファイル ---- */
 #define IDM_OPEN                1001
@@ -51,7 +52,7 @@
 #define IDM_ABOUT               1030
 
 /* ---- 文字列：メッセージ ---- */
-#define IDS_ABOUT_FORMAT        2001 /* 書式: %ls %ls %ls（アプリ名・版数・レジストリキー） */
+#define IDS_ABOUT_FORMAT        2001 /* 書式: %ls %ls %ls（アプリ名・版数・INI のパス） */
 #define IDS_RICHEDIT_ERROR      2002
 #define IDS_INIT_ERROR          2003
 #define IDS_OPEN_FAILED         2004 /* 書式: %ls（フルパス） */
@@ -64,6 +65,10 @@
 #define IDS_TITLE_SOURCE        2101
 #define IDS_TITLE_ZOOM          2102 /* 書式: %d（倍率 %） */
 #define IDS_IMAGE_LABEL         2103
+#define IDS_STATUS_BYTES        2104 /* 書式: %llu（バイト数） */
+#define IDS_STATUS_KIB          2105 /* 書式: %.2f %llu（KiB・バイト数） */
+#define IDS_STATUS_MIB          2106 /* 書式: %.2f %llu（MiB・バイト数） */
+#define IDS_STATUS_LINES        2107 /* 書式: %llu（行数） */
 
 /* ---- 文字列：ファイル選択ダイアログ ---- */
 #define IDS_FILTER_MARKDOWN     2201

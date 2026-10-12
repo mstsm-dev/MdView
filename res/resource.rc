@@ -149,7 +149,7 @@ END
 STRINGTABLE
 BEGIN
   // メッセージ（書式指定子の順番と型を変えないこと）
-  IDS_ABOUT_FORMAT        "%ls %ls\n\n軽量 Markdown ビューア (Win32 API + RichEdit)\n\nフォント設定: HKCU\\%ls\n  FontBody / FontCode (REG_SZ), FontSize (REG_DWORD)"
+  IDS_ABOUT_FORMAT        "%ls %ls\n\n軽量 Markdown ビューア (Win32 API + RichEdit)\n\n設定ファイル:\n%ls"
   IDS_RICHEDIT_ERROR      "Msftedit.dll を読み込めません。"
   IDS_INIT_ERROR          "ウィンドウまたはリソースを初期化できません。"
   IDS_OPEN_FAILED         "ファイルを開けません。\n%ls"
@@ -162,6 +162,12 @@ BEGIN
   IDS_TITLE_SOURCE        " [ソース]"
   IDS_TITLE_ZOOM          " (%d%%)"
   IDS_IMAGE_LABEL         "画像"
+
+  // ステータスバー（書式指定子の順番と型を変えないこと）
+  IDS_STATUS_BYTES        "%llu バイト"
+  IDS_STATUS_KIB          "%.2f KiB (%llu バイト)"
+  IDS_STATUS_MIB          "%.2f MiB (%llu バイト)"
+  IDS_STATUS_LINES        "%llu 行"
 
   // ファイル選択ダイアログ（拡張子の一覧は textfile.c の MARKDOWN_EXTENSIONS から作る）
   IDS_FILTER_MARKDOWN     "Markdown (*.md;*.markdown;*.mdown;*.mkd;*.txt)"

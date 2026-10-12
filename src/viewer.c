@@ -19,7 +19,7 @@
 #define TO_ADVANCEDTYPOGRAPHY 1
 #endif
 
-#define VIEWER_PADDING 20       /* 本文の左右余白（96 DPI 基準の px）。上は 1/2、下は 1/4 */
+#define VIEWER_PADDING 20       /* 本文の左右余白（96 DPI 基準の px）。上下は付けない（viewer_layout） */
 #define VIEWER_WIDTH_MARGIN 120 /* 表の幅に残す余裕（twips） */
 
 /* ------------------------------------------------------------------------
@@ -47,16 +47,21 @@ HWND viewer_create(HWND parent, HINSTANCE instance, UINT id)
     return edit;
 }
 
-void viewer_layout(HWND edit, int width, int height, int dpi)
+/*
+ * 本文の余白は左右だけに付ける（EM_SETRECT）。
+ * 上下に余白を付けると、RichEdit は一部だけ見えている行を書式矩形の外（余白）まで描き、
+ * スクロールしてもその余白を描き直さないため、下端に前の表示の断片が残る（1.1.0 の不具合）。
+ * 書式矩形の上下をクライアント領域の端に合わせ、はみ出した部分はウィンドウ自体に切り取らせる。
+ * 上の余白は RTF の先頭の空き（md2rtf の MdOptions.top_space_twips）で付ける。
+ */
+void viewer_layout(HWND edit, int x, int y, int width, int height, int dpi)
 {
-    MoveWindow(edit, 0, 0, width, height, TRUE);
+    MoveWindow(edit, x, y, width, height, TRUE);
     int pad = MulDiv(VIEWER_PADDING, dpi, 96);
     RECT r;
     GetClientRect(edit, &r);
     r.left += pad;
-    r.top += pad / 2;
     r.right -= pad;
-    r.bottom -= pad / 4;
     if (r.right <= r.left) r.right = r.left + 1;
     if (r.bottom <= r.top) r.bottom = r.top + 1;
     SendMessageW(edit, EM_SETRECT, 0, (LPARAM)&r);
@@ -67,6 +72,32 @@ static RECT format_rect(HWND edit)
     RECT r;
     SendMessageW(edit, EM_GETRECT, 0, (LPARAM)&r);
     return r;
+}
+
+static void fill_if_not_empty(HDC dc, const RECT *r, HBRUSH brush)
+{
+    if (r->right > r->left && r->bottom > r->top) FillRect(dc, r, brush);
+}
+
+/*
+ * 書式矩形の外（左右の余白）を背景色で塗る。RichEdit の WM_PAINT の後に呼ぶ。
+ * 表が表示幅より広いと RichEdit はセルを余白まで描き、縦スクロールで余白を描き直さないため、
+ * 余白に前の表示の断片が残る。これを毎回の描画後に消す。
+ */
+void viewer_paint_margins(HWND edit, COLORREF background)
+{
+    RECT client, text = format_rect(edit), r;
+    GetClientRect(edit, &client);
+    HDC dc = GetDC(edit);
+    HBRUSH brush = CreateSolidBrush(background);
+
+    r = client; r.right = text.left;   fill_if_not_empty(dc, &r, brush); /* 左 */
+    r = client; r.left = text.right;   fill_if_not_empty(dc, &r, brush); /* 右 */
+    r = client; r.bottom = text.top;   fill_if_not_empty(dc, &r, brush); /* 上（通常は 0） */
+    r = client; r.top = text.bottom;   fill_if_not_empty(dc, &r, brush); /* 下（通常は 0） */
+
+    DeleteObject(brush);
+    ReleaseDC(edit, dc);
 }
 
 int viewer_width_twips(HWND edit, int dpi)

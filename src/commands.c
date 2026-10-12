@@ -83,7 +83,8 @@ static void open_in_editor(App *a)
 
 static void show_about(App *a)
 {
-    res_message_boxf(a->hwnd, IDS_ABOUT_FORMAT, MB_ICONINFORMATION, APP_NAME, APP_VERSION, SETTINGS_REG_KEY);
+    res_message_boxf(a->hwnd, IDS_ABOUT_FORMAT, MB_ICONINFORMATION, APP_NAME, APP_VERSION,
+                     a->iniPath ? a->iniPath : SETTINGS_FILE_NAME);
 }
 
 static void toggle_dark(App *a)

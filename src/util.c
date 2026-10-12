@@ -49,6 +49,36 @@ wchar_t *wide_from_utf8(const char *s)
     return w;
 }
 
+wchar_t *path_join(const wchar_t *dir, const wchar_t *name)
+{
+    size_t dirLen = wcslen(dir);
+    size_t nameLen = wcslen(name);
+    bool needSlash = dirLen > 0 && dir[dirLen - 1] != L'\\';
+    size_t total = dirLen + (needSlash ? 1 : 0) + nameLen + 1;
+
+    wchar_t *joined = malloc(total * sizeof(wchar_t));
+    if (!joined) return NULL;
+
+    memcpy(joined, dir, dirLen * sizeof(wchar_t));
+    if (needSlash) joined[dirLen++] = L'\\';
+    memcpy(joined + dirLen, name, (nameLen + 1) * sizeof(wchar_t));
+    return joined;
+}
+
+wchar_t *module_path(void)
+{
+    /* 長いパスに対応するため、切り詰められなくなるまでバッファを広げる。 */
+    for (DWORD capacity = MAX_PATH; capacity <= 32768; capacity *= 2) {
+        wchar_t *buffer = malloc(capacity * sizeof(wchar_t));
+        if (!buffer) return NULL;
+        DWORD length = GetModuleFileNameW(NULL, buffer, capacity);
+        if (length > 0 && length < capacity) return buffer;
+        free(buffer);
+        if (length == 0) return NULL;
+    }
+    return NULL;
+}
+
 int screen_dpi(void)
 {
     HDC dc = GetDC(NULL);

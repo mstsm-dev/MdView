@@ -1,7 +1,7 @@
 /*
- * settings.h — 設定の保持・読み込み・保存（レジストリ HKCU\Software\MdView）
+ * settings.h — INI 設定の保持・読み込み・保存
  *
- * レジストリの値名と Settings のフィールドの対応は settings.c の VALUE_TABLE に
+ * INI のキーと Settings のフィールドの対応は settings.c の KEY_TABLE に
  * 一覧で定義している。項目を追加するときはフィールドと表の1行を足す。
  */
 #ifndef MDV_SETTINGS_H
@@ -9,29 +9,36 @@
 
 #include "common.h"
 
-#define SETTINGS_REG_KEY L"Software\\MdView"
+#define SETTINGS_FILE_NAME L"MdView.ini"
 #define SETTINGS_FONT_NAME_MAX 64 /* フォント名の最大文字数（終端を含む） */
 
 typedef struct {
-    /* 表示 */
-    int zoom;                                 /* Zoom：倍率 %（50〜300）         */
-    bool dark;                                /* Dark：ダークテーマ              */
-    bool autoReload;                          /* AutoReload：変更時に自動再読み込み */
-    int fontSize;                             /* FontSize：本文 pt（6〜40）       */
-    wchar_t fontBody[SETTINGS_FONT_NAME_MAX]; /* FontBody：本文フォント          */
-    wchar_t fontCode[SETTINGS_FONT_NAME_MAX]; /* FontCode：等幅フォント          */
+    /* [Window] */
+    int x, y;                                 /* 通常時の位置（CW_USEDEFAULT なら OS 任せ） */
+    int width, height;                        /* 通常時のサイズ（0 なら既定値を DPI に合わせて使う） */
+    bool maximized;
+    bool showStatusBar;
 
-    /* ウィンドウ */
-    WINDOWPLACEMENT placement;                /* Placement：位置・サイズ・最大化 */
-    bool hasPlacement;                        /* placement が有効か              */
+    /* [Display] */
+    bool dark;                                /* Theme=Dark */
+    int zoom;                                 /* 倍率 %（50〜300） */
+    int fontSize;                             /* 本文 pt（6〜40） */
+    wchar_t fontBody[SETTINGS_FONT_NAME_MAX]; /* 本文フォント */
+    wchar_t fontCode[SETTINGS_FONT_NAME_MAX]; /* 等幅フォント */
+
+    /* [File] */
+    bool autoReload;                          /* 変更時に自動再読み込み */
 } Settings;
 
 void settings_set_defaults(Settings *s);
 
-/* 既定値を設定したうえでレジストリから読み込む。キーがなければ既定値のまま。 */
-void settings_load(Settings *s);
+/* EXE と同じフォルダの INI パスを返す（呼び出し側で free）。 */
+wchar_t *settings_default_path(void);
 
-/* レジストリへ保存する。hasPlacement が false なら Placement は書かない。 */
-bool settings_save(const Settings *s);
+/* 既定値を設定したうえで INI を読み込む。ファイルがなければ既定値のまま。 */
+void settings_load(Settings *s, const wchar_t *path);
+
+/* INI を UTF-8（BOM なし）で一時ファイル経由で保存する。 */
+bool settings_save(const Settings *s, const wchar_t *path);
 
 #endif /* MDV_SETTINGS_H */

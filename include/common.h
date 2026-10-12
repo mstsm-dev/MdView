@@ -52,6 +52,14 @@ char *utf8_from_wide_n(const wchar_t *w, int length, size_t *outLength);
 /* UTF-8 → UTF-16（呼び出し側で free）。確保できなければ NULL。 */
 wchar_t *wide_from_utf8(const char *s);
 
+/* ---- パス（util.c） ---- */
+
+/* dir と name を '\' で連結した新しい文字列を返す。 */
+wchar_t *path_join(const wchar_t *dir, const wchar_t *name);
+
+/* 実行ファイルのフルパスを返す（長いパス対応、呼び出し側で free）。 */
+wchar_t *module_path(void);
+
 /* ---- 画面（util.c） ---- */
 
 /* 画面の論理 DPI（システム DPI 対応のため全モニタ共通）。 */
