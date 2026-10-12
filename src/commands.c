@@ -2,6 +2,7 @@
  * commands.c — メニュー・アクセラレータ・右クリックメニューのコマンド処理
  */
 #include "app.h"
+#include "editor.h"
 #include "viewer.h"
 
 #include <commdlg.h>
@@ -66,19 +67,11 @@ static void open_file(App *a)
     free(filter);
 }
 
-/* 既定のエディタ（"edit" 動詞）で開く。関連付けがなければメモ帳で開く。 */
+/* INI の [Editor] で指定したエディタで開く（未指定なら関連付けの「編集」→メモ帳）。editor.c */
 static void open_in_editor(App *a)
 {
     if (!a->path) return;
-    INT_PTR result = (INT_PTR)ShellExecuteW(a->hwnd, L"edit", a->path, NULL, NULL, SW_SHOWNORMAL);
-    if (result <= 32) {
-        size_t n = wcslen(a->path) + 3;
-        wchar_t *args = malloc(n * sizeof(wchar_t));
-        if (!args) return;
-        swprintf(args, n, L"\"%ls\"", a->path);
-        ShellExecuteW(a->hwnd, L"open", L"notepad.exe", args, NULL, SW_SHOWNORMAL);
-        free(args);
-    }
+    editor_open(a->hwnd, a->cfg.editorPath, a->cfg.editorArgs, a->path);
 }
 
 static void show_about(App *a)

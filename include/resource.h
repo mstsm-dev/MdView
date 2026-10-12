@@ -60,6 +60,8 @@
 #define IDS_CONFIRM_LINK        2006 /* 書式: %ls（URL） */
 #define IDS_CONFIRM_FILE        2007 /* 書式: %ls（フルパス） */
 #define IDS_FIND_NOT_FOUND      2008 /* 書式: %ls（検索文字列） */
+#define IDS_EDITOR_NOT_FOUND    2009 /* 書式: %ls（エディタのパス） */
+#define IDS_EDITOR_FAILED       2010 /* 書式: %ls %ls（エディタのパス・引数） */
 
 /* ---- 文字列：画面表示 ---- */
 #define IDS_TITLE_SOURCE        2101

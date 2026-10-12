@@ -1,9 +1,9 @@
 # MdView — Windows軽量Markdownビューア仕様書
 
-- **文書版数**：v1.1
-- **対象ソース**：MdView 1.2.0
-- **作成**：ソース（1.0.0〜1.2.0）と本書を Claude で生成した
-- **更新日**：2026-10-11
+- **文書版数**：v1.2
+- **対象ソース**：MdView 1.3.0
+- **作成**：ソース（1.0.0〜1.3.0）と本書を Claude で生成した
+- **更新日**：2026-10-12
 - **位置づけ**：開発・検証の基準文書。実装との差分は16章に記載する。
 - **構成の参考**：ImageViewerLite 1.0.0（モジュール分割、リソースの分離、表駆動の設定、仕様書の章立て）
 
@@ -138,7 +138,7 @@ GitHubの配色を参考にした2種類。`Ctrl+D` で切り替え、タイト�
 3. ファイルサイズは64MiBまで。読み込みでは書き込み・削除の共有を許し、エディタで開いたままでも読める。
 4. 開けないときは「ファイルを開けません。」とフルパスを表示し、表示中の文書を維持する。
 5. `F5` / `Ctrl+R` で再読み込みする（スクロール量を維持）。
-6. `Ctrl+E` で既定のエディタ（関連付けの「編集」）で開く。関連付けがなければメモ帳で開く。
+6. `Ctrl+E` でエディタで開く（4.5節）。
 
 ### 4.1 文字コード
 
@@ -180,13 +180,39 @@ GitHubの配色を参考にした2種類。`Ctrl+D` で切り替え、タイト�
 - 読み込みに失敗した場合（保存途中など）は何もせず、次の検査で再試行する。
 - 既定ON。［表示 → 変更時に自動再読み込み］で切り替え、設定に保存する。
 
+### 4.5 エディタで開く
+
+`Ctrl+E`（［ファイル → エディタで開く］）で、表示中の文書をINIの `[Editor]` で指定したエディタで開く（8.1節）。自動再読み込み（4.4節）と組み合わせると、エディタで保存するたびに表示が更新される。
+
+| キー | 意味 |
+|---|---|
+| `Path` | エディタの実行ファイルのフルパス。全体を `"` で囲んでもよい。環境変数（`%LOCALAPPDATA%` など）を展開する。相対パスは `MdView.exe` のフォルダを基準にする |
+| `Args` | エディタに渡す引数。`%1` を文書のフルパスに置き換える（複数あればすべて）。パスに空白が含まれても1つの引数になるよう `"%1"` と書く。既定値は `"%1"` |
+
+- `Args` に `%1` がない場合は、末尾に空白と `"文書のフルパス"` を足す（`Args` が空なら `"文書のフルパス"` だけ）。
+- エディタの作業フォルダは文書のフォルダにする。
+- `Path` が空の場合は1.2.0までと同じく、関連付けの「編集」で開き、それもなければメモ帳で開く。
+- `Path` のファイルが存在しなければ「エディタが見つかりません。」とパスを表示する。起動に失敗した場合は「エディタを起動できません。」とパス・引数を表示する。
+- ファイル未指定（初期表示）のときは何もしない。
+- `ShellExecuteW`（`open`）で起動するため、`.exe` のほか `.bat` / `.cmd` も指定できる。
+
+| エディタ | `Path` の例 | `Args` の例 |
+|---|---|---|
+| Visual Studio Code | `%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe` | `--reuse-window "%1"` |
+| サクラエディタ | `C:\Program Files (x86)\sakura\sakura.exe` | `"%1"` |
+| 秀丸エディタ | `C:\Program Files\Hidemaru\Hidemaru.exe` | `"%1"` |
+| Notepad++ | `C:\Program Files\Notepad++\notepad++.exe` | `-multiInst "%1"` |
+| メモ帳 | `C:\Windows\System32\notepad.exe` | `"%1"` |
+
+（インストール先は環境によって異なる。上の例は代表的な既定のインストール先で、引数は各エディタの説明書を確認すること。）
+
 ## 5. 既定操作
 
 | 操作 | 機能 | コマンドID |
 |---|---|---|
 | `Ctrl+O` | 開く | `IDM_OPEN` |
 | `F5` / `Ctrl+R` | 再読み込み | `IDM_RELOAD` |
-| `Ctrl+E` | エディタで開く | `IDM_EDIT` |
+| `Ctrl+E` | エディタで開く（4.5節） | `IDM_EDIT` |
 | `Alt+←` / `BackSpace` / マウスの戻るボタン | 戻る | `IDM_BACK` |
 | `Ctrl+W` / `Alt+F4` | 終了 | `IDM_EXIT` |
 | `Ctrl+C` | 選択範囲をコピー（RichEditが処理） | `IDM_COPY`（メニュー） |
@@ -291,6 +317,8 @@ ImageViewerLite と同じ方式とする。
 | Display | FontBody | 文字列（UTF-8） | Yu Gothic UI | 63文字まで。空は既定値 |
 | Display | FontCode | 文字列（UTF-8） | Consolas | 63文字まで。空は既定値 |
 | File | AutoReload | 真偽 | 1 | 変更時に自動再読み込み |
+| Editor | Path | 文字列（UTF-8） | （空） | エディタのフルパス。1023文字まで。空なら関連付けの「編集」→メモ帳（4.5節） |
+| Editor | Args | 文字列（UTF-8） | `"%1"` | エディタの引数。`%1` を文書のフルパスに置き換える。1023文字まで（4.5節） |
 
 真偽値は `1/0`、`true/false`、`yes/no`、`on/off` を受け付け、保存時は `1/0` で書く。
 
@@ -312,7 +340,13 @@ FontCode=Consolas
 
 [File]
 AutoReload=1
+
+[Editor]
+Path=
+Args="%1"
 ```
+
+保存は `KEY_TABLE` の順にキーを書き出すため、INIに手で書いた注釈（`;` の行）や不明なキーは、MdViewの終了時に消える。
 
 ## 9. メニュー構成とリソース
 
@@ -398,7 +432,7 @@ MdView/
 ├── Makefile
 ├── README.md
 ├── CHANGELOG.md
-├── MdView_仕様書_v1.1.md
+├── MdView_仕様書_v1.2.md
 ├── MdView.ini            既定の設定ファイル（EXE と同じフォルダに置く）
 ├── include/
 │   ├── common.h          Windowsヘッダ設定、APP_NAME、共通ユーティリティ
@@ -406,7 +440,7 @@ MdView/
 │   ├── resource.h        リソースID
 │   ├── types.h           ScrollKeep
 │   ├── app.h             App構造体とモジュール間API
-│   ├── viewer.h  find.h  links.h  history.h  droptarget.h  textfile.h  settings.h
+│   ├── viewer.h  find.h  links.h  history.h  droptarget.h  textfile.h  settings.h  editor.h
 │   ├── md2rtf.h          Markdown変換の公開API（Windows非依存）
 │   └── md_internal.h     Markdown変換の内部定義（md*.c 専用）
 ├── src/
@@ -419,6 +453,7 @@ MdView/
 │   ├── links.c           リンクの取り出し・分類・ローカルパスの解決・見出しの位置
 │   ├── history.c         戻るの履歴
 │   ├── droptarget.c      OLEドロップターゲット
+│   ├── editor.c          エディタで開く（INI の [Editor]、%1 の置き換え）
 │   ├── textfile.c        ファイル読み込み・文字コード判別・行数・Markdown拡張子の一覧
 │   ├── settings.c        INI読み書き（表駆動）
 │   ├── util.c            文字列変換・パス・DPI・リソース文字列
@@ -436,7 +471,7 @@ MdView/
     └── md2rtf_check.c    Markdown変換の自己テスト（make check）
 ```
 
-- モジュール間の依存は `app.h` に集約する。`viewer`・`find`・`links`・`history`・`droptarget`・`textfile`・`settings` は `App` 構造体に依存しない。
+- モジュール間の依存は `app.h` に集約する。`viewer`・`find`・`links`・`history`・`droptarget`・`textfile`・`settings`・`editor` は `App` 構造体に依存しない。
 - RichEditへのメッセージ送信は `viewer.c` に集約する（`commands.c` のコピー・すべて選択を除く）。
 - Markdown変換（`md2rtf.c`・`md_block.c`・`md_inline.c`）は `common.h`・Windowsヘッダを読み込まない。ホスト上の自己テストでビルドできる状態を保つ。
 
@@ -454,7 +489,7 @@ MdView/
 
 | 指標 | 目標 |
 |---|---|
-| EXEサイズ | 1MiB以下（アイコン内包）。1.2.0は約175KiB |
+| EXEサイズ | 1MiB以下（アイコン内包）。1.3.0は約176KiB |
 | 起動 | 500ms以内 |
 | 変換と表示 | 一般的な文書（数百KB）で200ms以内 |
 | 倍率・テーマ切替 | 体感で待たされないこと（変換をやり直すため、文書の大きさに比例する） |
@@ -489,6 +524,7 @@ MdView/
 | T23 | ステータスバーにファイルサイズと行数が表示され、再読み込みで更新される。初期表示では空になる |
 | T24 | ウィンドウの高さを変えながらスクロールしても、本文の下端・左右の余白に以前の表示の断片が残らない（表を含む文書で確認） |
 | T25 | INIがない状態で起動・終了すると `MdView.ini` が作られ、次回起動時に位置・倍率・テーマが復元される。BOM付き・不正値・大文字小文字の違いを含むINIでも、正しい項目は反映され、不正な項目だけ既定値になる |
+| T26 | `[Editor] Path` にエディタを指定すると、`Ctrl+E` で `Args` の `%1` を文書のフルパスに置き換えて起動する（空白・日本語を含むパス、`%1` なし・複数、相対パス、環境変数）。存在しないパスではメッセージが出る。`Path` が空なら関連付け→メモ帳 |
 
 ## 16. 実装状況と検証上の注意
 
@@ -503,8 +539,13 @@ MdView/
 
 ### 16.2 検証状態（2026-10-11時点）
 
-- MinGW-w64 GCC 13（x86_64-w64-mingw32、Linux上のクロスビルド）で `-Wall -Wextra -Wpedantic -Wshadow -Wstrict-prototypes` を含む警告ゼロでビルドできることを確認した。EXEサイズは約175KiB、取り込むDLLはWindows標準のもののみ。
+- MinGW-w64 GCC 13（x86_64-w64-mingw32、Linux上のクロスビルド）で `-Wall -Wextra -Wpedantic -Wshadow -Wstrict-prototypes` を含む警告ゼロでビルドできることを確認した。EXEサイズは約176KiB、取り込むDLLはWindows標準のもののみ。
 - `make check`（ホストのGCC）が成功することを確認した。
+- 1.3.0 のエディタの指定（T26）について、Wine 9.0上で、受け取ったコマンドラインと作業フォルダを記録するテスト用のプログラムをエディタとして指定し、次を確認した。
+  - 文書のパスに空白と日本語（`my docs\サンプル 1.md`）、エディタのフォルダに空白（`Editor Dir`）を含む状態で、`Args` が `"%1"`・`-n "%1" --line 1`・空・`--reuse-window`（`%1` なし）・`"%1" --diff "%1"`（2回）のいずれでも、4.5節のとおりのコマンドラインで起動し、作業フォルダが文書のフォルダになる。
+  - `Path` を `"` で囲んだ場合、相対パス（`Editor Dir\rec.exe`）、環境変数（`%MDV_TESTDIR%\...`）でも正しく起動する。
+  - 存在しない `Path` で「エディタが見つかりません。」とパスが表示される。`Path` が空ならメモ帳が開く（Wine には「編集」の関連付けがないため）。
+  - `Path` と `Args` は終了時の保存で書き換わらない（`"` や `%1` を含む値がそのまま残る）。
 - 1.2.0 の追加・修正について、Wine 9.0上で次を確認した。
   - ステータスバー（T23）：`samples/sample.md` で `1.48 KiB (1519 バイト)`・`68 行`、本書で `37.25 KiB (38148 バイト)`・`497 行` と表示され、`stat`・`wc -l` の値と一致。行数の計算は CR・LF・CRLF・末尾改行の有無・空ファイルの8ケースで確認。`ShowStatusBar=off` で非表示になり本文が下端まで広がる。
   - INI（T25）：INIがない状態から起動し、テーマ・倍率・位置・サイズを変えて終了すると `MdView.ini`（BOMなし）が作られ、レジストリには何も書かれない。次回起動で位置・サイズ・倍率・テーマが復元される。BOM付き・小文字のセクション名とキー名・`Zoom=999`・`Theme=Purple`・`Width=10`・空の `FontBody`・不明キーを含むINIで、正しい項目（`FontSize=14`、日本語のフォント名、`ShowStatusBar=off`）だけが反映され、不正な項目は既定値になる。
@@ -522,6 +563,7 @@ MdView/
 |---|---|
 | v1.0 | 初版。MdView 1.1.0（ImageViewerLite の構成方針に合わせたリファクタリング）に対応して作成（詳細は `CHANGELOG.md`） |
 | v1.1 | MdView 1.2.0 に対応。ステータスバー（3.1節）、設定のINI化（8章）、本文下端の描画の残りの修正（7.1節）、受入テスト T23〜T25 を追加 |
+| v1.2 | MdView 1.3.0 に対応。エディタの指定（4.5節、INI の `[Editor]`）、受入テスト T26 を追加 |
 
 ## 18. 参考情報
 
