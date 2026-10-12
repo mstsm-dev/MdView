@@ -1,0 +1,169 @@
+// MdView リソース定義（UTF-8 で保存し、windres --codepage=65001 でビルドする）
+//
+// UI の構造・ラベル・ショートカット・固定文言はここに集約する。
+// ID は include/resource.h、版数は include/version.h で定義する。
+
+#include <windows.h>
+#include "resource.h"
+#include "version.h"
+
+#pragma code_page(65001)
+
+LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
+
+// ---------------------------------------------------------------------------
+// アイコン・マニフェスト・初期表示の文書
+// ---------------------------------------------------------------------------
+
+IDI_APP ICON "MdView.ico"
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "manifest.xml"
+IDR_WELCOME RCDATA "welcome.md"
+
+// ---------------------------------------------------------------------------
+// バージョン情報（Explorer のプロパティに表示）
+// ---------------------------------------------------------------------------
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     MDV_VERSION_MAJOR, MDV_VERSION_MINOR, MDV_VERSION_PATCH, 0
+PRODUCTVERSION  MDV_VERSION_MAJOR, MDV_VERSION_MINOR, MDV_VERSION_PATCH, 0
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "041104B0"
+    BEGIN
+      VALUE "FileDescription",  "MdView - 軽量 Markdown ビューア"
+      VALUE "FileVersion",      MDV_VERSION_STRING
+      VALUE "InternalName",     MDV_APP_NAME_STRING
+      VALUE "OriginalFilename", MDV_EXE_NAME_STRING
+      VALUE "ProductName",      MDV_APP_NAME_STRING
+      VALUE "ProductVersion",   MDV_VERSION_STRING
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0411, 1200
+  END
+END
+
+// ---------------------------------------------------------------------------
+// メインメニュー（チェック表示は commands.c の commands_update_menu）
+// ---------------------------------------------------------------------------
+
+IDR_MAINMENU MENU
+BEGIN
+  POPUP "ファイル(&F)"
+  BEGIN
+    MENUITEM "開く(&O)...\tCtrl+O",              IDM_OPEN
+    MENUITEM "再読み込み(&R)\tF5",                IDM_RELOAD
+    MENUITEM "エディタで開く(&E)\tCtrl+E",        IDM_EDIT
+    MENUITEM "戻る(&B)\tAlt+←",                   IDM_BACK
+    MENUITEM SEPARATOR
+    MENUITEM "終了(&X)\tAlt+F4",                  IDM_EXIT
+  END
+  POPUP "編集(&E)"
+  BEGIN
+    MENUITEM "コピー(&C)\tCtrl+C",                IDM_COPY
+    MENUITEM "すべて選択(&A)\tCtrl+A",            IDM_SELALL
+    MENUITEM SEPARATOR
+    MENUITEM "検索(&F)...\tCtrl+F",               IDM_FIND
+    MENUITEM "次を検索(&N)\tF3",                  IDM_FINDNEXT
+    MENUITEM "前を検索(&P)\tShift+F3",            IDM_FINDPREV
+  END
+  POPUP "表示(&V)"
+  BEGIN
+    MENUITEM "拡大(&I)\tCtrl++",                  IDM_ZOOMIN
+    MENUITEM "縮小(&O)\tCtrl+-",                  IDM_ZOOMOUT
+    MENUITEM "標準サイズ(&Z)\tCtrl+0",            IDM_ZOOMRESET
+    MENUITEM SEPARATOR
+    MENUITEM "ダークテーマ(&D)\tCtrl+D",          IDM_DARK
+    MENUITEM "ソース表示(&U)\tCtrl+U",            IDM_RAW
+    MENUITEM "変更時に自動再読み込み(&A)",        IDM_AUTORELOAD
+  END
+  POPUP "ヘルプ(&H)"
+  BEGIN
+    MENUITEM "バージョン情報(&A)",                IDM_ABOUT
+  END
+END
+
+// ---------------------------------------------------------------------------
+// 右クリックメニュー（先頭のサブメニューを表示する。灰色・チェック表示は commands.c）
+// ---------------------------------------------------------------------------
+
+IDR_POPUPMENU MENU
+BEGIN
+  POPUP "本文"
+  BEGIN
+    MENUITEM "コピー(&C)\tCtrl+C",                IDM_COPY
+    MENUITEM "すべて選択(&A)\tCtrl+A",            IDM_SELALL
+    MENUITEM SEPARATOR
+    MENUITEM "戻る(&B)\tAlt+←",                   IDM_BACK
+    MENUITEM "再読み込み(&R)\tF5",                IDM_RELOAD
+    MENUITEM "ソース表示(&U)\tCtrl+U",            IDM_RAW
+  END
+END
+
+// ---------------------------------------------------------------------------
+// キーボードショートカット（仕様書 5章）
+//   Ctrl+C / Ctrl+A は RichEdit が処理する。BackSpace（戻る）と Ctrl+ホイール
+//   （拡大縮小）は window.c の RichEdit サブクラスで処理する。
+// ---------------------------------------------------------------------------
+
+IDR_ACCELERATORS ACCELERATORS
+BEGIN
+  // ファイル
+  "O",          IDM_OPEN,       VIRTKEY, CONTROL
+  VK_F5,        IDM_RELOAD,     VIRTKEY
+  "R",          IDM_RELOAD,     VIRTKEY, CONTROL
+  "E",          IDM_EDIT,       VIRTKEY, CONTROL
+  VK_LEFT,      IDM_BACK,       VIRTKEY, ALT
+  "W",          IDM_EXIT,       VIRTKEY, CONTROL
+
+  // 検索
+  "F",          IDM_FIND,       VIRTKEY, CONTROL
+  VK_F3,        IDM_FINDNEXT,   VIRTKEY
+  VK_F3,        IDM_FINDPREV,   VIRTKEY, SHIFT
+
+  // 倍率
+  VK_OEM_PLUS,  IDM_ZOOMIN,     VIRTKEY, CONTROL          // メインキーの「;/+」(JIS)・「=/+」(US)
+  VK_OEM_PLUS,  IDM_ZOOMIN,     VIRTKEY, CONTROL, SHIFT
+  VK_ADD,       IDM_ZOOMIN,     VIRTKEY, CONTROL          // テンキー +
+  VK_OEM_MINUS, IDM_ZOOMOUT,    VIRTKEY, CONTROL          // メインキーの「-」
+  VK_SUBTRACT,  IDM_ZOOMOUT,    VIRTKEY, CONTROL          // テンキー -
+  "0",          IDM_ZOOMRESET,  VIRTKEY, CONTROL
+  VK_NUMPAD0,   IDM_ZOOMRESET,  VIRTKEY, CONTROL
+
+  // 表示
+  "D",          IDM_DARK,       VIRTKEY, CONTROL
+  "U",          IDM_RAW,        VIRTKEY, CONTROL
+END
+
+// ---------------------------------------------------------------------------
+// 文字列
+// ---------------------------------------------------------------------------
+
+STRINGTABLE
+BEGIN
+  // メッセージ（書式指定子の順番と型を変えないこと）
+  IDS_ABOUT_FORMAT        "%ls %ls\n\n軽量 Markdown ビューア (Win32 API + RichEdit)\n\nフォント設定: HKCU\\%ls\n  FontBody / FontCode (REG_SZ), FontSize (REG_DWORD)"
+  IDS_RICHEDIT_ERROR      "Msftedit.dll を読み込めません。"
+  IDS_INIT_ERROR          "ウィンドウまたはリソースを初期化できません。"
+  IDS_OPEN_FAILED         "ファイルを開けません。\n%ls"
+  IDS_FILE_NOT_FOUND      "ファイルが見つかりません。\n%ls"
+  IDS_CONFIRM_LINK        "次のリンクを開きますか？\n\n%.2000ls"
+  IDS_CONFIRM_FILE        "次のファイルを開きますか？\n\n%ls"
+  IDS_FIND_NOT_FOUND      "「%ls」が見つかりません。"
+
+  // 画面表示
+  IDS_TITLE_SOURCE        " [ソース]"
+  IDS_TITLE_ZOOM          " (%d%%)"
+  IDS_IMAGE_LABEL         "画像"
+
+  // ファイル選択ダイアログ（拡張子の一覧は textfile.c の MARKDOWN_EXTENSIONS から作る）
+  IDS_FILTER_MARKDOWN     "Markdown (*.md;*.markdown;*.mdown;*.mkd;*.txt)"
+  IDS_FILTER_ALL          "すべてのファイル (*.*)"
+END
