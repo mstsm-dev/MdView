@@ -157,6 +157,8 @@ BEGIN
   IDS_CONFIRM_LINK        "次のリンクを開きますか？\n\n%.2000ls"
   IDS_CONFIRM_FILE        "次のファイルを開きますか？\n\n%ls"
   IDS_FIND_NOT_FOUND      "「%ls」が見つかりません。"
+  IDS_EDITOR_NOT_FOUND    "エディタが見つかりません。\n%ls\n\n設定ファイル（MdView.ini）の [Editor] Path を確認してください。"
+  IDS_EDITOR_FAILED       "エディタを起動できません。\n%ls\n引数: %ls"
 
   // 画面表示
   IDS_TITLE_SOURCE        " [ソース]"

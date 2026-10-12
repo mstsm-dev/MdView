@@ -10,7 +10,10 @@
 #include "common.h"
 
 #define SETTINGS_FILE_NAME L"MdView.ini"
-#define SETTINGS_FONT_NAME_MAX 64 /* フォント名の最大文字数（終端を含む） */
+#define SETTINGS_FONT_NAME_MAX 64      /* フォント名の最大文字数（終端を含む） */
+#define SETTINGS_EDITOR_PATH_MAX 1024  /* エディタのパスの最大文字数（終端を含む） */
+#define SETTINGS_EDITOR_ARGS_MAX 1024  /* エディタの引数の最大文字数（終端を含む。PATH_MAX 以下にすること） */
+#define SETTINGS_EDITOR_DEFAULT_ARGS L"\"%1\""
 
 typedef struct {
     /* [Window] */
@@ -28,6 +31,10 @@ typedef struct {
 
     /* [File] */
     bool autoReload;                          /* 変更時に自動再読み込み */
+
+    /* [Editor]（「エディタで開く」。editor.c） */
+    wchar_t editorPath[SETTINGS_EDITOR_PATH_MAX]; /* エディタのフルパス。空なら関連付けの「編集」→メモ帳 */
+    wchar_t editorArgs[SETTINGS_EDITOR_ARGS_MAX]; /* 引数。%1 を文書のフルパスに置き換える。既定 "%1" */
 } Settings;
 
 void settings_set_defaults(Settings *s);

@@ -29,7 +29,8 @@ typedef enum {
     KEY_INT,        /* int、範囲 [min, max] */
     KEY_BOOL,       /* bool、0/1・true/false など */
     KEY_BOOL_NAMED, /* bool。names の value が 0/1 */
-    KEY_FONT        /* wchar_t[SETTINGS_FONT_NAME_MAX]、INI 上は UTF-8。空・長すぎる値は無視 */
+    KEY_FONT,       /* wchar_t[SETTINGS_FONT_NAME_MAX]、INI 上は UTF-8。空・長すぎる値は無視 */
+    KEY_TEXT        /* wchar_t[max]（max は終端を含む文字数）、INI 上は UTF-8。空も有効。長すぎる値は無視 */
 } KeyType;
 
 typedef struct {
@@ -66,6 +67,8 @@ static const KeyDef KEY_TABLE[] = {
     { "Display", "FontBody",      KEY_FONT,       FIELD(fontBody),      NO_NAMES, NO_RANGE },
     { "Display", "FontCode",      KEY_FONT,       FIELD(fontCode),      NO_NAMES, NO_RANGE },
     { "File",    "AutoReload",    KEY_BOOL,       FIELD(autoReload),    NO_NAMES, NO_RANGE },
+    { "Editor",  "Path",          KEY_TEXT,       FIELD(editorPath),    NO_NAMES, 0, SETTINGS_EDITOR_PATH_MAX },
+    { "Editor",  "Args",          KEY_TEXT,       FIELD(editorArgs),    NO_NAMES, 0, SETTINGS_EDITOR_ARGS_MAX },
 };
 
 /* ------------------------------------------------------------------------
@@ -89,6 +92,9 @@ void settings_set_defaults(Settings *s)
     wcscpy(s->fontCode, L"Consolas");
 
     s->autoReload = true;
+
+    s->editorPath[0] = L'\0';
+    wcscpy(s->editorArgs, SETTINGS_EDITOR_DEFAULT_ARGS);
 }
 
 wchar_t *settings_default_path(void)
@@ -167,6 +173,12 @@ static void apply_value(Settings *s, const KeyDef *def, const char *text)
         if (!text[0]) break;
         wchar_t *w = wide_from_utf8(text);
         if (w && w[0] && wcslen(w) < SETTINGS_FONT_NAME_MAX) wcscpy((wchar_t *)field, w);
+        free(w);
+        break;
+    }
+    case KEY_TEXT: {
+        wchar_t *w = wide_from_utf8(text);
+        if (w && wcslen(w) < (size_t)def->max) wcscpy((wchar_t *)field, w);
         free(w);
         break;
     }
@@ -285,7 +297,8 @@ static int format_value(const Settings *s, const KeyDef *def, char *out, size_t 
         return snprintf(out, capacity, "%d", *(const bool *)field ? 1 : 0);
     case KEY_BOOL_NAMED:
         return snprintf(out, capacity, "%s", name_of(def, *(const bool *)field ? 1 : 0));
-    case KEY_FONT: {
+    case KEY_FONT:
+    case KEY_TEXT: {
         char *u8 = utf8_from_wide((const wchar_t *)field);
         int n = u8 ? snprintf(out, capacity, "%s", u8) : -1;
         free(u8);
@@ -306,7 +319,7 @@ static int build_ini_text(const Settings *s, char *out, size_t capacity)
     const char *currentSection = "";
     for (size_t i = 0; i < ARRAY_COUNT(KEY_TABLE); ++i) {
         const KeyDef *def = &KEY_TABLE[i];
-        char value[256];
+        char value[SETTINGS_EDITOR_PATH_MAX * 3 + 1]; /* UTF-8 は 1 文字最大 3 バイト（BMP） */
         n = format_value(s, def, value, sizeof(value));
         if (n < 0 || (size_t)n >= sizeof(value)) return -1;
 
@@ -327,7 +340,7 @@ bool settings_save(const Settings *s, const wchar_t *path)
 {
     if (!path) return false;
 
-    char text[4096];
+    static char text[16384]; /* UI スレッドからのみ呼ぶ */
     int length = build_ini_text(s, text, sizeof(text));
     if (length < 0) return false;
 
