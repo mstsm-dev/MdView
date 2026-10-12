@@ -1,33 +1,70 @@
-# MdView - build with MSYS2 (MINGW64 / UCRT64 shell):  make
-# Cross build from Linux:                               make CROSS=x86_64-w64-mingw32-
+# MdView — MSYS2 UCRT64 用 Makefile
+#
+#   make            リリースビルド（dist/MdView.exe）
+#   make DEBUG=1    デバッグ情報付き・最適化なし
+#   make check      Markdown 変換の自己テスト（ホストの gcc でビルドして samples/ を変換）
+#   make clean      生成物を削除
+#
+# クロスコンパイル例: make CROSS=x86_64-w64-mingw32-
 
 CROSS   ?=
 CC      := $(CROSS)gcc
 WINDRES := $(CROSS)windres
+HOSTCC  ?= gcc
 
-CFLAGS  ?= -O2
-CFLAGS  += -std=gnu11 -Wall -Wextra -municode -DUNICODE -D_UNICODE
-LDFLAGS += -mwindows -municode -static -s
-LIBS    := -lcomctl32 -lcomdlg32 -lshlwapi -lshell32 -lole32 -luuid -lgdi32 -luser32 -ladvapi32
+APP     := MdView
+TARGET  := dist/$(APP).exe
 
-OBJS    := build/main.o build/md2rtf.o build/app.res.o
-TARGET  := mdview.exe
+SOURCES := $(wildcard src/*.c)
+OBJECTS := $(patsubst src/%.c,build/%.o,$(SOURCES))
+RES_OBJ := build/resource.o
+DEPS    := $(OBJECTS:.o=.d)
+
+# Markdown 変換（Windows 非依存）。make check でホスト向けにもビルドする
+MD_SOURCES := src/md2rtf.c src/md_block.c src/md_inline.c
+
+DEFINES  := -DUNICODE -D_UNICODE -DCOBJMACROS -DWIN32_LEAN_AND_MEAN -D_WIN32_WINNT=0x0601
+WARNINGS := -Wall -Wextra -Wno-unused-parameter -Wshadow -Wstrict-prototypes
+CFLAGS   := -std=c11 $(WARNINGS) $(DEFINES) -Iinclude -MMD -MP
+LDFLAGS  := -municode -mwindows -static
+LDLIBS   := -luser32 -lgdi32 -lcomdlg32 -lcomctl32 -lshell32 -lshlwapi -lole32 -luuid -ladvapi32 -ldwmapi
+
+ifeq ($(DEBUG),1)
+  CFLAGS += -O0 -g
+else
+  CFLAGS  += -O2
+  LDFLAGS += -s
+endif
+
+.PHONY: all check clean
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+# -municode が必要：エントリーポイントが wWinMain のため
+$(TARGET): $(OBJECTS) $(RES_OBJ) | dist-dir
+	$(CC) $(OBJECTS) $(RES_OBJ) $(LDFLAGS) $(LDLIBS) -o $@
 
-build/%.o: src/%.c src/md2rtf.h | build
-	$(CC) $(CFLAGS) -c -o $@ $<
+build/%.o: src/%.c | build-dir
+	$(CC) $(CFLAGS) -c $< -o $@
 
-build/app.res.o: src/app.rc src/app.manifest src/mdview.ico | build
-	$(WINDRES) -I src -O coff -o $@ $<
+# アイコン・マニフェスト・初期表示の文書・版数を変えたときもリソースを作り直す
+$(RES_OBJ): res/resource.rc res/$(APP).ico res/manifest.xml res/welcome.md include/resource.h include/version.h | build-dir
+	$(WINDRES) --codepage=65001 $(DEFINES) -Iinclude -Ires -i $< -o $@
 
-build:
-	mkdir -p build
+# Markdown 変換の自己テスト：同梱の Markdown（文書・サンプル・初期表示）を変換し、RTF の波かっこの対応を検査する
+build/md2rtf_check: tests/md2rtf_check.c $(MD_SOURCES) include/md2rtf.h include/md_internal.h | build-dir
+	$(HOSTCC) -std=c11 $(WARNINGS) -O1 -Iinclude tests/md2rtf_check.c $(MD_SOURCES) -o $@
+
+check: build/md2rtf_check
+	./build/md2rtf_check *.md samples/*.md res/welcome.md
+
+build-dir:
+	@mkdir -p build
+
+dist-dir:
+	@mkdir -p dist
 
 clean:
-	rm -rf build $(TARGET)
+	rm -rf build dist
 
-.PHONY: all clean
+-include $(DEPS)
