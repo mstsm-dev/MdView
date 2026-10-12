@@ -74,10 +74,26 @@ static void open_in_editor(App *a)
     editor_open(a->hwnd, a->cfg.editorPath, a->cfg.editorArgs, a->path);
 }
 
+/*
+ * バージョン情報。MB_ICONINFORMATION などの標準アイコンはシステムの通知音
+ * （「メッセージ（情報）」など）が鳴るため、アプリのアイコン（MB_USERICON）で表示して無音にする。
+ */
 static void show_about(App *a)
 {
-    res_message_boxf(a->hwnd, IDS_ABOUT_FORMAT, MB_ICONINFORMATION, APP_NAME, APP_VERSION,
-                     a->iniPath ? a->iniPath : SETTINGS_FILE_NAME);
+    wchar_t *text = res_format(IDS_ABOUT_FORMAT, APP_NAME, APP_VERSION,
+                               a->iniPath ? a->iniPath : SETTINGS_FILE_NAME);
+    if (!text) return;
+
+    MSGBOXPARAMSW params = { 0 };
+    params.cbSize = sizeof(params);
+    params.hwndOwner = a->hwnd;
+    params.hInstance = a->instance;
+    params.lpszText = text;
+    params.lpszCaption = APP_NAME;
+    params.dwStyle = MB_OK | MB_USERICON;
+    params.lpszIcon = MAKEINTRESOURCEW(IDI_APP);
+    MessageBoxIndirectW(&params);
+    free(text);
 }
 
 static void toggle_dark(App *a)

@@ -2,7 +2,7 @@
 
 Windows 向けの軽量 Markdown ビューア。C11 / Win32 API / RichEdit のみで構成し、インストール不要の単一 EXE（約175KB）で動作します。
 
-- 版数：1.3.0
+- 版数：1.3.1
 - 仕様：`MdView_仕様書_v1.2.md`
 - 変更履歴：`CHANGELOG.md`
 
