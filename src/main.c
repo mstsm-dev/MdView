@@ -10,6 +10,7 @@
 #define _UNICODE
 #endif
 #define WIN32_LEAN_AND_MEAN
+#define COBJMACROS
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0601
 #endif
@@ -21,6 +22,7 @@
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <richedit.h>
+#include <ole2.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,6 +51,7 @@ enum {
     IDM_BACK, IDM_ABOUT,
 };
 enum { TID_RESIZE = 1, TID_WATCH = 2 };
+#define WM_APP_OPENFILE (WM_APP + 1)   /* lParam = malloc'ed WCHAR* path */
 enum { KEEP_TOP, KEEP_CP, KEEP_Y };
 
 /* ------------------------------------------------------------------ */
@@ -809,6 +812,116 @@ static void open_drop(HDROP hd)
 }
 
 /* ------------------------------------------------------------------ */
+/* OLE drop target                                                     */
+/*                                                                     */
+/* RichEdit registers its own OLE drop target, which refuses files     */
+/* while the control is read-only (and then WM_DROPFILES never comes). */
+/* We replace it with our own target that accepts CF_HDROP.            */
+/* ------------------------------------------------------------------ */
+typedef struct {
+    IDropTarget iface;
+    LONG        ref;
+    BOOL        accept;
+} DropTarget;
+
+static FORMATETC g_fmtHdrop = { CF_HDROP, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+
+static DWORD drop_effect(DWORD allowed)
+{
+    if (allowed & DROPEFFECT_COPY) return DROPEFFECT_COPY;
+    if (allowed & DROPEFFECT_LINK) return DROPEFFECT_LINK;
+    return DROPEFFECT_NONE;   /* never MOVE: the source would delete the file */
+}
+
+static HRESULT STDMETHODCALLTYPE dt_QueryInterface(IDropTarget *This, REFIID riid, void **ppv)
+{
+    if (IsEqualIID(riid, &IID_IUnknown) || IsEqualIID(riid, &IID_IDropTarget)) {
+        *ppv = This;
+        IDropTarget_AddRef(This);
+        return S_OK;
+    }
+    *ppv = NULL;
+    return E_NOINTERFACE;
+}
+static ULONG STDMETHODCALLTYPE dt_AddRef(IDropTarget *This)
+{
+    return (ULONG)InterlockedIncrement(&((DropTarget *)This)->ref);
+}
+static ULONG STDMETHODCALLTYPE dt_Release(IDropTarget *This)
+{
+    return (ULONG)InterlockedDecrement(&((DropTarget *)This)->ref);  /* static object */
+}
+static HRESULT STDMETHODCALLTYPE dt_DragEnter(IDropTarget *This, IDataObject *data, DWORD keys, POINTL pt, DWORD *effect)
+{
+    (void)keys; (void)pt;
+    DropTarget *dt = (DropTarget *)This;
+    dt->accept = data && IDataObject_QueryGetData(data, &g_fmtHdrop) == S_OK;
+    *effect = dt->accept ? drop_effect(*effect) : DROPEFFECT_NONE;
+    return S_OK;
+}
+static HRESULT STDMETHODCALLTYPE dt_DragOver(IDropTarget *This, DWORD keys, POINTL pt, DWORD *effect)
+{
+    (void)keys; (void)pt;
+    *effect = ((DropTarget *)This)->accept ? drop_effect(*effect) : DROPEFFECT_NONE;
+    return S_OK;
+}
+static HRESULT STDMETHODCALLTYPE dt_DragLeave(IDropTarget *This)
+{
+    ((DropTarget *)This)->accept = FALSE;
+    return S_OK;
+}
+static HRESULT STDMETHODCALLTYPE dt_Drop(IDropTarget *This, IDataObject *data, DWORD keys, POINTL pt, DWORD *effect)
+{
+    (void)keys; (void)pt;
+    DropTarget *dt = (DropTarget *)This;
+    STGMEDIUM stg;
+    *effect = DROPEFFECT_NONE;
+    if (dt->accept && data && IDataObject_GetData(data, &g_fmtHdrop, &stg) == S_OK) {
+        HDROP hd = (HDROP)GlobalLock(stg.hGlobal);
+        if (hd) {
+            UINT n = DragQueryFileW(hd, 0, NULL, 0);
+            if (n > 0) {
+                WCHAR *path = (WCHAR *)calloc((size_t)n + 1, sizeof(WCHAR));
+                if (path && DragQueryFileW(hd, 0, path, n + 1)) {
+                    /* open after returning, so Explorer is not blocked by a dialog */
+                    if (!PostMessageW(g_hwnd, WM_APP_OPENFILE, 0, (LPARAM)path)) free(path);
+                    *effect = drop_effect(DROPEFFECT_COPY | DROPEFFECT_LINK);
+                } else free(path);
+            }
+            GlobalUnlock(stg.hGlobal);
+        }
+        ReleaseStgMedium(&stg);
+    }
+    dt->accept = FALSE;
+    return S_OK;
+}
+
+static IDropTargetVtbl g_dtVtbl = {
+    dt_QueryInterface, dt_AddRef, dt_Release,
+    dt_DragEnter, dt_DragOver, dt_DragLeave, dt_Drop,
+};
+static DropTarget g_dropTarget = { { &g_dtVtbl }, 1, FALSE };
+
+static void register_drop_targets(void)
+{
+    /* replace RichEdit's own target; the main window covers the menu bar etc. */
+    RevokeDragDrop(g_edit);
+    HRESULT h1 = RegisterDragDrop(g_edit, &g_dropTarget.iface);
+    HRESULT h2 = RegisterDragDrop(g_hwnd, &g_dropTarget.iface);
+    if (FAILED(h1) || FAILED(h2)) {
+        /* fallback: classic WM_DROPFILES */
+        DragAcceptFiles(g_hwnd, TRUE);
+        if (FAILED(h1)) DragAcceptFiles(g_edit, TRUE);
+    }
+}
+
+static void revoke_drop_targets(void)
+{
+    RevokeDragDrop(g_edit);
+    RevokeDragDrop(g_hwnd);
+}
+
+/* ------------------------------------------------------------------ */
 /* windows                                                             */
 /* ------------------------------------------------------------------ */
 static LRESULT CALLBACK edit_subclass(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR ref)
@@ -929,7 +1042,6 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         SendMessageW(g_edit, EM_AUTOURLDETECT, FALSE, 0);
         SendMessageW(g_edit, EM_SETUNDOLIMIT, 0, 0);
         SendMessageW(g_edit, EM_SETTYPOGRAPHYOPTIONS, TO_ADVANCEDTYPOGRAPHY, TO_ADVANCEDTYPOGRAPHY);
-        DragAcceptFiles(g_edit, TRUE);
         SetWindowSubclass(g_edit, edit_subclass, 1, 0);
         return 0;
 
@@ -966,6 +1078,16 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         open_drop((HDROP)wp);
         return 0;
 
+    case WM_APP_OPENFILE: {
+        WCHAR *path = (WCHAR *)lp;
+        if (path) {
+            SetForegroundWindow(hwnd);
+            open_file(path, 1);
+            free(path);
+        }
+        return 0;
+    }
+
     case WM_COMMAND:
         on_command(LOWORD(wp));
         return 0;
@@ -980,6 +1102,7 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return 0;
 
     case WM_DESTROY:
+        revoke_drop_targets();
         PostQuitMessage(0);
         return 0;
     }
@@ -990,6 +1113,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, LPWSTR cmdLine, int nShow)
 {
     (void)hPrev; (void)cmdLine;
     g_inst = hInst;
+
+    HRESULT ole = OleInitialize(NULL);   /* required for RegisterDragDrop */
 
     INITCOMMONCONTROLSEX icc = { sizeof icc, ICC_STANDARD_CLASSES };
     InitCommonControlsEx(&icc);
@@ -1018,10 +1143,11 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, LPWSTR cmdLine, int nShow)
 
     g_menu = build_menu();
     int d = dpi_x();
-    g_hwnd = CreateWindowExW(WS_EX_ACCEPTFILES, wc.lpszClassName, APP_NAME, WS_OVERLAPPEDWINDOW,
+    g_hwnd = CreateWindowExW(0, wc.lpszClassName, APP_NAME, WS_OVERLAPPEDWINDOW,
                              CW_USEDEFAULT, CW_USEDEFAULT, MulDiv(900, d, 96), MulDiv(1000, d, 96),
                              NULL, g_menu, hInst, NULL);
     if (!g_hwnd) return 1;
+    register_drop_targets();
     g_accel = build_accel();
     apply_theme();
 
@@ -1051,5 +1177,6 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, LPWSTR cmdLine, int nShow)
     }
     md_doc_free(&g_doc);
     free(g_src);
+    if (SUCCEEDED(ole)) OleUninitialize();
     return (int)m.wParam;
 }

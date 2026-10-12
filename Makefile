@@ -8,7 +8,7 @@ WINDRES := $(CROSS)windres
 CFLAGS  ?= -O2
 CFLAGS  += -std=gnu11 -Wall -Wextra -municode -DUNICODE -D_UNICODE
 LDFLAGS += -mwindows -municode -static -s
-LIBS    := -lcomctl32 -lcomdlg32 -lshlwapi -lshell32 -lgdi32 -luser32 -ladvapi32
+LIBS    := -lcomctl32 -lcomdlg32 -lshlwapi -lshell32 -lole32 -luuid -lgdi32 -luser32 -ladvapi32
 
 OBJS    := build/main.o build/md2rtf.o build/app.res.o
 TARGET  := mdview.exe
