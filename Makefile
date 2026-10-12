@@ -2,6 +2,7 @@
 #
 #   make            リリースビルド（dist/MdView.exe）
 #   make DEBUG=1    デバッグ情報付き・最適化なし
+#   make dist       EXE と INI を dist/ にそろえる
 #   make check      Markdown 変換の自己テスト（ホストの gcc でビルドして samples/ を変換）
 #   make clean      生成物を削除
 #
@@ -13,6 +14,7 @@ WINDRES := $(CROSS)windres
 HOSTCC  ?= gcc
 
 APP     := MdView
+INI     := $(APP).ini
 TARGET  := dist/$(APP).exe
 
 SOURCES := $(wildcard src/*.c)
@@ -27,7 +29,7 @@ DEFINES  := -DUNICODE -D_UNICODE -DCOBJMACROS -DWIN32_LEAN_AND_MEAN -D_WIN32_WIN
 WARNINGS := -Wall -Wextra -Wno-unused-parameter -Wshadow -Wstrict-prototypes
 CFLAGS   := -std=c11 $(WARNINGS) $(DEFINES) -Iinclude -MMD -MP
 LDFLAGS  := -municode -mwindows -static
-LDLIBS   := -luser32 -lgdi32 -lcomdlg32 -lcomctl32 -lshell32 -lshlwapi -lole32 -luuid -ladvapi32 -ldwmapi
+LDLIBS   := -luser32 -lgdi32 -lcomdlg32 -lcomctl32 -lshell32 -lshlwapi -lole32 -luuid -ldwmapi
 
 ifeq ($(DEBUG),1)
   CFLAGS += -O0 -g
@@ -36,7 +38,7 @@ else
   LDFLAGS += -s
 endif
 
-.PHONY: all check clean
+.PHONY: all dist check clean
 
 all: $(TARGET)
 
@@ -57,6 +59,9 @@ build/md2rtf_check: tests/md2rtf_check.c $(MD_SOURCES) include/md2rtf.h include/
 
 check: build/md2rtf_check
 	./build/md2rtf_check *.md samples/*.md res/welcome.md
+
+dist: $(TARGET)
+	cp $(INI) dist/
 
 build-dir:
 	@mkdir -p build

@@ -42,6 +42,10 @@ static void rtf_header(R *r)
     for (int k = 1; k < C_COUNT; k++)
         bprintf(b, "\\red%u\\green%u\\blue%u;", (col[k] >> 16) & 255, (col[k] >> 8) & 255, col[k] & 255);
     bputs(b, "}\n\\viewkind4\n");
+
+    /* 先頭の空き：段落前の間隔だけを持つ、ごく小さい空段落（ホストは上の余白を付けない） */
+    if (r->o->top_space_twips > 0)
+        bprintf(b, "\\pard\\plain\\sl0\\sb%d\\sa0\\fs2\\par\n", r->o->top_space_twips);
 }
 
 /* normalizes newlines and expands tabs (tab stop 4) */

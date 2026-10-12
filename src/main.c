@@ -1,10 +1,10 @@
 /*
  * main.c — MdView のエントリーポイント
  *
- * 起動順：OLE・コモンコントロール初期化 → RichEdit 読み込み → 設定読み込み
+ * 起動順：OLE・コモンコントロール初期化 → RichEdit 読み込み → 設定（INI）読み込み
  *         → リソース読み込み → ウィンドウ作成 → タイトルバーのテーマ → ウィンドウ表示
  *         → コマンドライン第1引数のファイル（なければ初期表示の文書）→ メッセージループ
- * 終了時：WM_CLOSE（window.c）で位置と設定を保存、ここで残りを解放。
+ * 終了時：WM_CLOSE（window.c）で位置と設定を INI へ保存、ここで残りを解放。
  */
 #include "app.h"
 
@@ -36,6 +36,7 @@ static void release_state(App *a)
     /* アクセラレータテーブルはリソースから読んだものなので解放不要 */
     free(a->source);
     free(a->path);
+    free(a->iniPath);
 }
 
 /* コマンドライン第1引数（開くファイルのパス）を返す。呼び出し側で free。 */
@@ -69,7 +70,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, LPWSTR commandLine, 
     a->instance = instance;
 
     HRESULT ole = OleInitialize(NULL); /* RegisterDragDrop に必要 */
-    INITCOMMONCONTROLSEX controls = { sizeof(controls), ICC_STANDARD_CLASSES };
+    INITCOMMONCONTROLSEX controls = { sizeof(controls), ICC_STANDARD_CLASSES | ICC_BAR_CLASSES };
     InitCommonControlsEx(&controls);
 
     int exitCode = 1;
@@ -78,7 +79,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, LPWSTR commandLine, 
         goto done;
     }
     find_init(&a->find);
-    settings_load(&a->cfg);
+    a->iniPath = settings_default_path();
+    settings_load(&a->cfg, a->iniPath);
 
     if (!load_ui_resources(a) || !window_register_class(instance) || !window_create(a)) {
         res_message_box(NULL, IDS_INIT_ERROR, MB_OK | MB_ICONERROR);

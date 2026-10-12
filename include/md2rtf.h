@@ -18,6 +18,7 @@ typedef struct {
     const char *font_code;    /* 等幅フォント名                                            */
     int         body_halfpt;  /* 本文の文字サイズ（半ポイント。22 = 11pt）                  */
     const char *image_label;  /* 画像の表示ラベル（"[ラベル: alt]"）。NULL なら "画像"        */
+    int         top_space_twips; /* 文書の先頭に入れる空き（twips、倍率を掛けない）。0 なら入れない */
 } MdOptions;
 
 typedef struct { char *url;  char *text; } MdLink;     /* リンク先 / 表示文字列（平文） */

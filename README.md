@@ -1,9 +1,9 @@
 # MdView
 
-Windows 向けの軽量 Markdown ビューア。C11 / Win32 API / RichEdit のみで構成し、インストール不要の単一 EXE（約170KB）で動作します。
+Windows 向けの軽量 Markdown ビューア。C11 / Win32 API / RichEdit のみで構成し、インストール不要の単一 EXE（約175KB）で動作します。
 
-- 版数：1.1.0
-- 仕様：`MdView_仕様書_v1.0.md`
+- 版数：1.2.0
+- 仕様：`MdView_仕様書_v1.1.md`
 - 変更履歴：`CHANGELOG.md`
 
 ## 生成AIによる作成について
@@ -13,7 +13,7 @@ Windows 向けの軽量 Markdown ビューア。C11 / Win32 API / RichEdit の�
 | 工程 | 使用した AI |
 |---|---|
 | 初版のソースコード（1.0.0）、アイコン、ドラッグ＆ドロップの修正 | Anthropic Claude |
-| ImageViewerLite の構成に合わせたリファクタリング（1.1.0）、本 README・CHANGELOG・仕様書 v1.0 | Anthropic Claude |
+| ImageViewerLite の構成に合わせたリファクタリング（1.1.0）、ステータスバー・INI 化・描画の修正（1.2.0）、本 README・CHANGELOG・仕様書 | Anthropic Claude |
 
 要件の決定と成果物の採否は利用者（作成者）が行っていますが、コードは人手による全面的なレビューを経ていません。次の「諸注意」を確認したうえで利用してください。
 
@@ -24,6 +24,7 @@ MSYS2 の **UCRT64** ターミナルで実行します（`which gcc` が `/ucrt6
 ```bash
 pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-binutils make
 make          # dist/MdView.exe を生成
+make dist     # INI も dist/ にコピー
 make check    # Markdown 変換の自己テスト
 make DEBUG=1  # デバッグビルド（-O0 -g、シンボルを残す）
 make clean
@@ -46,14 +47,15 @@ Linux からのクロスビルドは `make CROSS=x86_64-w64-mingw32-` で行え�
 | Ctrl+W | 終了 |
 | リンクをクリック | 外部リンクはブラウザ、`#見出し` はジャンプ、`.md` はビューア内で開く |
 
-ファイルが更新されると1秒程度で自動的に再読み込みします（スクロール位置は維持）。
+ファイルが更新されると1秒程度で自動的に再読み込みします（スクロール位置は維持）。ステータスバーにはファイルサイズと行数を表示します。
 
 ## ソース構成
 
 ```text
 MdView/
 ├── Makefile
-├── README.md / CHANGELOG.md / MdView_仕様書_v1.0.md
+├── README.md / CHANGELOG.md / MdView_仕様書_v1.1.md
+├── MdView.ini                 既定の設定ファイル（EXE と同じフォルダに置く）
 ├── include/
 │   ├── common.h               Windows ヘッダ設定・共通ユーティリティ
 │   ├── version.h              版数（C とリソースで共用）
@@ -65,7 +67,7 @@ MdView/
 │   └── (各モジュールのヘッダ)
 ├── src/
 │   ├── main.c                 起動・終了、メッセージループ
-│   ├── window.c               ウィンドウプロシージャ、RichEdit のサブクラス、レイアウト、ドロップ
+│   ├── window.c               ウィンドウプロシージャ、RichEdit のサブクラス、ステータスバー、ドロップ
 │   ├── commands.c             メニュー／ショートカットのコマンド処理、メニューの状態表示
 │   ├── app.c                  開く・再読み込み・戻る・表示・倍率・リンク
 │   ├── viewer.c               RichEdit のラッパー（流し込み・スクロール・検索）
@@ -74,7 +76,7 @@ MdView/
 │   ├── history.c              戻るの履歴
 │   ├── droptarget.c           OLE ドロップターゲット
 │   ├── textfile.c             ファイル読み込み・文字コード判別・拡張子の一覧
-│   ├── settings.c             レジストリ読み書き（表駆動）
+│   ├── settings.c             INI 読み書き（表駆動）
 │   ├── util.c                 文字列変換・リソース文字列
 │   ├── md2rtf.c               Markdown 変換：公開 API・配色・前処理
 │   ├── md_block.c             Markdown 変換：ブロック要素
@@ -97,7 +99,8 @@ MdView/
 | メニューを追加 | `resource.h` に ID、`resource.rc` に項目、`commands.c` の `commands_execute` に処理 |
 | 文言を変更 | `res/resource.rc` の `STRINGTABLE` |
 | 初期表示の文書を変更 | `res/welcome.md` |
-| 設定項目を追加 | `Settings` にフィールド、`src/settings.c` の `VALUE_TABLE` に1行 |
+| INI の項目を追加 | `Settings` にフィールド、`src/settings.c` の `KEY_TABLE` に1行 |
+| ステータスバーの表示内容を変更 | `src/app.c` の `app_update_status`（書式は `STRINGTABLE` の `IDS_STATUS_*`、欄の幅は `src/window.c` の `STATUS_SIZE_WIDTH`） |
 | ビューア内で開く拡張子を追加 | `src/textfile.c` の `MARKDOWN_EXTENSIONS` に1行（フィルタ名の文言も合わせる） |
 | 配色を変更 | `src/md2rtf.c` の `THEME` 表（背景色は `md_theme_background`） |
 | 見出し・段落の大きさや間隔を変更 | `src/md_block.c` の `emit_heading` / `para_begin` |
@@ -109,6 +112,7 @@ MdView/
 
 - **Windows 実機での動作は未検証です。** 検証は Linux 上の MinGW-w64 によるクロスビルド（`-Wpedantic` を含め警告ゼロ）と、Wine 9.0 上での確認に限られます。
 - 1.0.0 からのリファクタリングでは、Markdown 変換の出力が 1,628 件の入力でバイト単位で一致すること、Wine 上で同じ操作をした画面・タイトル・保存される設定が一致することを確認しています（仕様書 16.2 節）。
+- **1.2.0 の「本文の下端に以前の表示の断片が残る」不具合の修正は未確認です。** Wine では修正前の版でも再現しなかったため、原因の分析（仕様書 7.1 節）に基づいて修正しています。実機で、表を含む文書をウィンドウの高さを変えながらスクロールして確認してください。
 - **リンクのクリックは未確認です。** Wine の RichEdit がリンク（HYPERLINK フィールド）を表示しないためです。実機で `samples/sample.md` のリンクを確認してください。
 - 表・コードブロック・見出しの下線・引用の罫線の見た目は RichEdit の版に依存します。日本語フォントでの表示、UTF-16・Shift_JIS の判別、MSYS2 UCRT64 でのビルドも実機で確認してください。
 - 生成 AI の出力には、もっともらしく見えて誤っている箇所が含まれることがあります。重要な用途に使う前に、コードを読んで確認してください。
@@ -118,11 +122,15 @@ MdView/
 - 本ソフトウェアは現状のまま提供され、動作や結果について一切保証しません。利用によって生じた損害について作成者は責任を負いません。
 - ライセンスは未設定です。第三者に配布・公開する場合は、事前にライセンスを決め、利用した AI サービスの利用規約（生成物の扱い）も確認してください。
 - EXE にはコード署名をしていないため、初回起動時に SmartScreen の警告が出ることがあります。
-- 設定はレジストリ `HKCU\Software\MdView` に保存します。フォントは `FontBody` / `FontCode`（REG_SZ）、`FontSize`（REG_DWORD）で変更できます（MdView を終了してから変更してください）。
+- 設定は EXE と同じフォルダの `MdView.ini` に保存します。`C:\Program Files` など書き込めない場所に置くと設定を保存できません。フォントなどは MdView を終了してから INI を直接編集してください（項目は仕様書 8.1 節）。
 
-  ```powershell
-  Set-ItemProperty -Path HKCU:\Software\MdView -Name FontBody -Value 'Meiryo UI'
+  ```ini
+  [Display]
+  FontBody=Meiryo UI
+  FontSize=12
   ```
+
+- 1.1.0 まではレジストリ `HKCU\Software\MdView` に保存していました。1.2.0 はこれを読み込みません。不要なら `reg delete HKCU\Software\MdView /f` で削除できます。
 
 - 管理者として実行している場合、Windows の仕様（UIPI）により通常権限のエクスプローラーからはドロップできません。通常権限で起動してください。
 - 本ソフトウェアはファイルを読み取るだけで、変更・削除は行いません。リンクのクリック以外にネットワーク通信は行いません。

@@ -23,6 +23,12 @@ bool textfile_read(const wchar_t *path, char **utf8, size_t *length, FileStamp *
 /* ファイルの更新日時またはサイズが stamp と異なるか。属性を取得できなければ false。 */
 bool textfile_changed(const wchar_t *path, const FileStamp *stamp);
 
+/*
+ * 行数（ステータスバー表示用）。改行（CRLF・CR・LF）の数に、末尾が改行で終わらない
+ * 最終行の1を足す。空のファイルは 0 行。
+ */
+size_t textfile_count_lines(const char *text, size_t length);
+
 /* ビューア内で開く拡張子（.md など）か。 */
 bool textfile_is_markdown(const wchar_t *path);
 

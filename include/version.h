@@ -9,9 +9,9 @@
 #define MDV_VERSION_H
 
 #define MDV_VERSION_MAJOR 1
-#define MDV_VERSION_MINOR 1
+#define MDV_VERSION_MINOR 2
 #define MDV_VERSION_PATCH 0
-#define MDV_VERSION_STRING "1.1.0"
+#define MDV_VERSION_STRING "1.2.0"
 
 #define MDV_APP_NAME_STRING "MdView"
 #define MDV_EXE_NAME_STRING "MdView.exe"
