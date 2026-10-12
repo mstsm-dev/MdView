@@ -73,6 +73,9 @@ const wchar_t *res_string(UINT id, wchar_t *buffer, int capacity);
 /* STRINGTABLE の文字列でメッセージボックスを表示する。 */
 int res_message_box(HWND owner, UINT textId, UINT flags);
 
+/* STRINGTABLE の書式文字列（%ls など）に引数を埋めた新しい文字列（呼び出し側で free）。 */
+wchar_t *res_format(UINT formatId, ...);
+
 /* STRINGTABLE の書式文字列（%ls など）に引数を埋めてメッセージボックスを表示する。 */
 int res_message_boxf(HWND owner, UINT formatId, UINT flags, ...);
 

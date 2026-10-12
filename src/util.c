@@ -100,22 +100,40 @@ int res_message_box(HWND owner, UINT textId, UINT flags)
     return MessageBoxW(owner, res_string(textId, text, ARRAY_COUNT(text)), APP_NAME, flags);
 }
 
+/* format に args を埋めた新しい文字列（呼び出し側で free）。args は2回使うので va_copy で渡す。 */
+static wchar_t *format_v(const wchar_t *format, va_list args)
+{
+    va_list measure;
+    va_copy(measure, args);
+    int length = _vscwprintf(format, measure);
+    va_end(measure);
+    if (length < 0) return str_dup(format);
+
+    wchar_t *text = malloc(((size_t)length + 1) * sizeof(wchar_t));
+    if (text) vswprintf(text, (size_t)length + 1, format, args);
+    return text;
+}
+
+wchar_t *res_format(UINT formatId, ...)
+{
+    wchar_t format[512];
+    res_string(formatId, format, ARRAY_COUNT(format));
+    va_list args;
+    va_start(args, formatId);
+    wchar_t *text = format_v(format, args);
+    va_end(args);
+    return text;
+}
+
 int res_message_boxf(HWND owner, UINT formatId, UINT flags, ...)
 {
     wchar_t format[512];
     res_string(formatId, format, ARRAY_COUNT(format));
-
     va_list args;
     va_start(args, flags);
-    int length = _vscwprintf(format, args);
+    wchar_t *text = format_v(format, args);
     va_end(args);
-    if (length < 0) return MessageBoxW(owner, format, APP_NAME, flags);
-
-    wchar_t *text = malloc(((size_t)length + 1) * sizeof(wchar_t));
     if (!text) return 0;
-    va_start(args, flags);
-    vswprintf(text, (size_t)length + 1, format, args);
-    va_end(args);
 
     int result = MessageBoxW(owner, text, APP_NAME, flags);
     free(text);
